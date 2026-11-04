@@ -1,87 +1,126 @@
---Ethan Ashby and Brayden Shampton Project 2 
---Top level MPU
+-- Ethan Ashby and Brayden Shampton Project 2
+-- Top-level MPU datapath. The micro2 entity name matches the supplied test bench.
 
---library Declaration
-library IEEE;
-use IEEE.std_logic_1164.all;
-use IEEE.numeric_std.all;
+-- Library declarations
+library ieee;
+use ieee.std_logic_1164.all;
 
+-- Top-level entity used by the professor-provided TestMicro2 bench
+entity micro2 is
+    port (
+        clk    : in    std_logic;
+        rst    : in    std_logic;
+        rd     : in    std_logic;
+        wr     : in    std_logic;
+        fetch  : in    std_logic;
+        ld_pc  : in    std_logic;
+        ld_mar : in    std_logic;
+        inc_pc : in    std_logic;
+        op     : in    std_logic_vector(2 downto 0);
+        addr   : out   std_logic_vector(7 downto 0);
+        data   : inout std_logic_vector(7 downto 0)
+    );
+end micro2;
 
+architecture behavioral of micro2 is
+    -- Operation codes shared with the professor-provided test bench
+    constant add  : std_logic_vector(2 downto 0) := "000";
+    constant addc : std_logic_vector(2 downto 0) := "001";
+    constant exor : std_logic_vector(2 downto 0) := "010";
+    constant load : std_logic_vector(2 downto 0) := "011";
+    constant hold : std_logic_vector(2 downto 0) := "100";
 
---entity declarations
-entity MPU is
-    port( 
-        clk : in STD_LOGIC;
-        rst : in STD_LOGIC;
-        rd : in STD_LOGIC;
-        wr : in STD_LOGIC;
-        fetch : in STD_LOGIC;
-        ld_pc : in STD_LOGIC;
-        ld_mar : in STD_LOGIC;
-        inc_pc : in STD_LOGIC;
-        op : in STD_LOGIC_VECTOR (2 downto 0);
-        addr : out STD_LOGIC_VECTOR (7 downto 0);
-        data : inout STD_LOGIC_VECTOR (7 downto 0));
-    end mpu;
-
-
---Architecture Declarations
-architecture behavioral of MPU is
-    constant add: std_logic_vector(2 downto 0) := "000";
-    constant addc: std_logic_vector(2 downto 0) := "001";
-    constant exor: std_logic_vector(2 downto 0) := "010";
-    constant load: std_logic_vector(2 downto 0) := "011";
-    constant hold: std_logic_vector(2 downto 0) := "100";
-
-    component addr_unit is
-        port (clk, ld_pc, inc_pc : in std_logic;
-            data : in std_logic_vector(7 downto 0);
-            pc_out : out std_logic_vector(7 downto 0));
-    end component;
-
-    component ALU is 
-        port(
-            A      : in  std_logic_vector(7 downto 0); -- accumulator
-            B      : in  std_logic_vector(7 downto 0); -- memory/immediate
-            Cin    : in  std_logic;                    -- carry in
-            Op     : in  std_logic_vector(2 downto 0);
-            Result : out std_logic_vector(7 downto 0);
-            Cout   : out std_logic 
-        );
-    end component;
-    component dFF_8 is
-        port (
-            clk, rst, ce : in std_logic;
-            d : in std_logic_vector (7 downto 0);
-            q : out std_logic_vector(7 downto 0)
-        );
-    end component;
-    signal internal_data : std_logic_vector(7 downto 0);
-    signal result_ALU : std_logic_vector(7 downto 0);
-    signal result_Acc : std_logic_vector(7 downto 0);
-    signal load_signal: std_logic;
-    signal Ci_MPU: std_logic;
-
+    signal accumulator : std_logic_vector(7 downto 0);
+    signal alu_result  : std_logic_vector(7 downto 0);
+    signal accumulator_enable : std_logic;
+    signal carry_flag  : std_logic := '0';
+    signal alu_carry   : std_logic;
 begin
+    -- Drive the shared data bus only during a memory write.
+    data <= accumulator when wr = '1' else (others => 'Z');
+    accumulator_enable <= '0' when op = hold else '1';
 
-    process (CLK, rst)
-    begin 
-        if rising_edge(CLK) then
-            u_ALU : ALU port map (
-                A => result,
-                B => internal_data,
-                Cin => Ci_MPU,
-                Op => Op,
-                Result => result_ALU,
-                Cout =>
-            );
+    -- The address unit selects the PC or MAR and manages both registers.
+    address_unit : entity work.addr_unit
+        port map (
+            clk      => clk,
+            ld_pc    => ld_pc,
+            ld_mar   => ld_mar,
+            inc_pc   => inc_pc,
+            fetch    => fetch,
+            rst      => rst,
+            data     => data,
+            addr_out => addr
+        );
 
-            addr_unit : addr_unit port map ();
-            accumulator : dFF_8 port map ();
+    -- The ALU combines the accumulator with the value on the memory data bus.
+    arithmetic_unit : entity work.ALU
+        port map (
+            A      => accumulator,
+            B      => data,
+            Cin    => carry_flag,
+            Op     => op,
+            Result => alu_result,
+            Cout   => alu_carry
+        );
 
+    -- Update the accumulator for every operation except HOLD.
+    accumulator_register : entity work.dFF_8
+        port map (
+            clk => clk,
+            rst => rst,
+            ce  => accumulator_enable,
+            d   => alu_result,
+            q   => accumulator
+        );
 
-        
+    -- Addition operations update carry; all other operations preserve it.
+    carry_register : process (clk, rst)
+    begin
+        if rst = '1' then
+            carry_flag <= '0';
+        elsif rising_edge(clk) then
+            if op = add or op = addc then
+                carry_flag <= alu_carry;
+            end if;
         end if;
     end process;
-
 end behavioral;
+
+-- Keep the MPU entity available as an alias for projects using that name.
+library ieee;
+use ieee.std_logic_1164.all;
+
+entity MPU is
+    port (
+        clk    : in    std_logic;
+        rst    : in    std_logic;
+        rd     : in    std_logic;
+        wr     : in    std_logic;
+        fetch  : in    std_logic;
+        ld_pc  : in    std_logic;
+        ld_mar : in    std_logic;
+        inc_pc : in    std_logic;
+        op     : in    std_logic_vector(2 downto 0);
+        addr   : out   std_logic_vector(7 downto 0);
+        data   : inout std_logic_vector(7 downto 0)
+    );
+end MPU;
+
+architecture compatibility of MPU is
+begin
+    datapath : entity work.micro2
+        port map (
+            clk    => clk,
+            rst    => rst,
+            rd     => rd,
+            wr     => wr,
+            fetch  => fetch,
+            ld_pc  => ld_pc,
+            ld_mar => ld_mar,
+            inc_pc => inc_pc,
+            op     => op,
+            addr   => addr,
+            data   => data
+        );
+end compatibility;
