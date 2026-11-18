@@ -21,11 +21,11 @@ end ALU;
 
 architecture behavioral of ALU is
 
-    constant add  : std_logic_vector(2 downto 0) := "000";
-    constant addc : std_logic_vector(2 downto 0) := "001";
-    constant exor : std_logic_vector(2 downto 0) := "010";
-    constant load : std_logic_vector(2 downto 0) := "011";
-    constant hold : std_logic_vector(2 downto 0) := "100";
+    constant alu_add : std_logic_vector(2 downto 0) := "000";
+    constant alu_addc : std_logic_vector(2 downto 0) := "001";
+    constant alu_xor : std_logic_vector(2 downto 0) := "010";
+    constant alu_load : std_logic_vector(2 downto 0) := "011";
+    constant alu_hold : std_logic_vector(2 downto 0) := "100";
 
 begin
 
@@ -35,14 +35,14 @@ begin
 
     case Op is
 
-        when add =>     -- ADD
+        when alu_add =>     -- ADD
             temp := ('0' & unsigned(A))
                   + ('0' & unsigned(B));
 
             Result <= std_logic_vector(temp(7 downto 0));
             Cout   <= temp(8);
 
-        when addc =>     -- ADDC
+        when alu_addc =>     -- ADDC
             temp := ('0' & unsigned(A))
                   + ('0' & unsigned(B));
 
@@ -53,15 +53,15 @@ begin
             Result <= std_logic_vector(temp(7 downto 0));
             Cout   <= temp(8);
 
-        when exor =>     -- XOR
+        when alu_xor =>     -- XOR
             Result <= A xor B;
             Cout   <= Cin;   -- carry unchanged
 
-        when load =>     -- LOAD
+        when alu_load =>     -- LOAD
             Result <= B;
             Cout   <= Cin;   -- carry unchanged
 
-        when hold =>     -- HOLD
+        when alu_hold =>     -- HOLD
             Result <= A;
             Cout   <= Cin;   -- carry unchanged
 
