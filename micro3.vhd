@@ -36,20 +36,22 @@ architecture behavioral of micro3 is
     signal accumulator_enable : std_logic;
     signal carry_flag  : std_logic := '0';
     signal alu_carry   : std_logic;
+    signal wr_int      : std_logic;  -- internal copy of wr (VHDL can't read an 'out' port)
 begin
 
     -- Drive the shared data bus only during a memory write.
-    data <= accumulator when wr = '1' else (others => 'Z');
-    accumulator_enable <= '0' when alu_opcode = alu_hold else '1';
+    wr   <= wr_int;
+    data <= accumulator when wr_int = '1' else (others => 'Z');
+    accumulator_enable <= '0' when alu_opcode = hold else '1';
 
     --Cotroller reads the input bus and then assigns write, fetch, read, and opcode as needed. Declared and instantiated.
-    controller : entity work.controller
+    control_unit : entity work.controller
         port map (
             clk      => clk,
             rst      => rst,
             c_flag   => carry_flag,
             data_bus => data,
-            write    => wr,
+            write    => wr_int,
             fetch    => fetch,
             read     => rd,
             alu_opcode => alu_opcode,
